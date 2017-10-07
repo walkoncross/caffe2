@@ -1,3 +1,18 @@
+# Copyright (c) 2016-present, Facebook, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+##############################################################################
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -38,6 +53,9 @@ class ParameterInfo(object):
         # in different precisions (i.e. half and float copies)
         # stored as a dict of TensorProto.DataType -> BlobReference
         self.blob_copy = blob_copy
+        # each param_info can have its own optimizer. It can be set within
+        # OptimizerContext (caffe2/python/optimizer.py)
+        self._optimizer = None
 
     def grad_type(self):
         # self.grad could be None for model parallelism with parameter server
@@ -47,14 +65,18 @@ class ParameterInfo(object):
             ParameterType.SPARSE if isinstance(self.grad, core.GradientSlice)
             else ParameterType.DENSE)
 
-    def cloned_init_net(self):
-        if not self._cloned_init_net:
-            init_net, outputs = self.blob.Net().ClonePartial(
-                'param_%d_%s_init' % (self.param_id, self.name),
-                inputs=[],
-                outputs=[self.blob])
-            self._cloned_init_net = (init_net, outputs[0])
-        return self._cloned_init_net
+    @property
+    def parameter(self):
+        return self.blob
+
+    @property
+    def optimizer(self):
+        return self._optimizer
+
+    @optimizer.setter
+    def optimizer(self, value):
+        assert self._optimizer is None, "optimizer has already been set"
+        self._optimizer = value
 
     def __str__(self):
         return self.name

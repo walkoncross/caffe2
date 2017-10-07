@@ -1,3 +1,19 @@
+/**
+ * Copyright (c) 2016-present, Facebook, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #ifndef CAFFE2_VIDEO_VIDEO_DECODER_H_
 #define CAFFE2_VIDEO_VIDEO_DECODER_H_
 
@@ -352,13 +368,21 @@ class VideoDecoder {
   void decodeFile(
       const std::string filename,
       const Params& params,
-      std::vector<std::unique_ptr<DecodedFrame>>& sampledFrames);
+      std::vector<std::unique_ptr<DecodedFrame>>& sampledFrames,
+      int maxFrames = 0, /* max frames we want decoded. 0 implies decode all */
+      bool decodeFromStart = true /* decode from start or randomly seek into
+                                     intermediate frame ? */
+      );
 
   void decodeMemory(
       const char* buffer,
       const int size,
       const Params& params,
-      std::vector<std::unique_ptr<DecodedFrame>>& sampledFrames);
+      std::vector<std::unique_ptr<DecodedFrame>>& sampledFrames,
+      int maxFrames = 0, /* max frames we want decoded. 0 implies decode all */
+      bool decodeFromStart = true /* decode from start or randomly seek into
+                                     intermediate frame ? */
+      );
 
  private:
   std::string ffmpegErrorStr(int result);
@@ -367,7 +391,11 @@ class VideoDecoder {
       const std::string& videoName,
       VideoIOContext& ioctx,
       const Params& params,
-      std::vector<std::unique_ptr<DecodedFrame>>& sampledFrames);
+      std::vector<std::unique_ptr<DecodedFrame>>& sampledFrames,
+      int maxFrames = 0, /* max frames we want decoded. 0 implies decode all */
+      bool decodeFromStart = true /* decode from start or randomly seek into
+                                     intermediate frame ? */
+      );
 };
 }
 

@@ -1,3 +1,18 @@
+# Copyright (c) 2016-present, Facebook, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+##############################################################################
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -5,9 +20,10 @@ from __future__ import unicode_literals
 
 import numpy as np
 
-from hypothesis import given
+from hypothesis import assume, given, settings
 import hypothesis.strategies as st
 
+from caffe2.proto import caffe2_pb2
 from caffe2.python import core
 import caffe2.python.hypothesis_test_util as hu
 
@@ -49,19 +65,26 @@ class TestMatMul(hu.HypothesisTestCase):
 
 
 class TestBatchMatMul(hu.HypothesisTestCase):
+    @settings(max_examples=30)
     @given(C=st.integers(min_value=1, max_value=10),
            M=st.integers(min_value=1, max_value=10),
            K=st.integers(min_value=1, max_value=10),
            N=st.integers(min_value=1, max_value=10),
            trans_a=st.booleans(),
            trans_b=st.booleans(),
+           dtype=st.sampled_from([np.float32, np.float16]),
            **hu.gcs)
-    def test_batch_matmul(self, C, M, K, N, trans_a, trans_b, gc, dc):
-        X = np.random.rand(C, M, K).astype(np.float32) - 0.5
+    def test_batch_matmul(self, C, M, K, N, trans_a, trans_b, dtype, gc, dc):
+        if dtype == np.float16:
+            # fp16 is only supported with CUDA
+            assume(gc.device_type == caffe2_pb2.CUDA)
+            dc = [d for d in dc if d.device_type == caffe2_pb2.CUDA]
+
+        X = np.random.rand(C, M, K).astype(dtype) - 0.5
         if trans_a:
             X = X.swapaxes(1, 2)
 
-        Y = np.random.rand(C, K, N).astype(np.float32) - 0.5
+        Y = np.random.rand(C, K, N).astype(dtype) - 0.5
         if trans_b:
             Y = Y.swapaxes(1, 2)
 
@@ -82,10 +105,16 @@ class TestBatchMatMul(hu.HypothesisTestCase):
                                    matmul_ref)
         # Check over multiple devices
         self.assertDeviceChecks(dc, op, [X, Y], [0])
+
+        kwargs = {}
+        if dtype == np.float16:
+            kwargs['threshold'] = 0.75  # default is 0.005
+
         # Gradient check wrt X
-        self.assertGradientChecks(gc, op, [X, Y], 0, [0])
+        self.assertGradientChecks(gc, op, [X, Y], 0, [0], **kwargs)
         # Gradient check wrt Y
-        self.assertGradientChecks(gc, op, [X, Y], 1, [0])
+        self.assertGradientChecks(gc, op, [X, Y], 1, [0], **kwargs)
+
 
 if __name__ == "__main__":
     import unittest

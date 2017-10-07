@@ -1,3 +1,19 @@
+/**
+ * Copyright (c) 2016-present, Facebook, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "caffe2/video/video_io.h"
 #include <random>
 #include <string>
@@ -447,7 +463,19 @@ bool DecodeClipFromMemoryBuffer(
   params.outputWidth_ = width ? width : -1;
   params.maximumOutputFrames_ = MAX_DECODING_FRAMES;
 
-  decoder.decodeMemory(video_buffer, size, params, sampledFrames);
+  bool isTemporalJitter = (start_frm < 0);
+  decoder.decodeMemory(
+      video_buffer,
+      size,
+      params,
+      sampledFrames,
+      length * sampling_rate,
+      !isTemporalJitter);
+
+  if (sampledFrames.size() < length * sampling_rate) {
+    /* selective decoding failed. Decode all frames. */
+    decoder.decodeMemory(video_buffer, size, params, sampledFrames);
+  }
 
   buffer = nullptr;
   int offset = 0;
@@ -463,6 +491,13 @@ bool DecodeClipFromMemoryBuffer(
     } else {
       use_start_frm = 0;
     }
+  }
+
+  if (sampledFrames.size() < length * sampling_rate) {
+    LOG(ERROR)
+        << "The video seems faulty and we could not decode suffient samples";
+    buffer = nullptr;
+    return true;
   }
 
   CAFFE_ENFORCE_LT(

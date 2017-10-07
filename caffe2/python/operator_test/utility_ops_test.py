@@ -1,3 +1,18 @@
+# Copyright (c) 2016-present, Facebook, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+##############################################################################
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -263,3 +278,51 @@ class TestUtilityOps(hu.HypothesisTestCase):
             workspace.RunOperatorOnce(op)
             Y = workspace.FetchBlob('Y')
             np.testing.assert_array_equal(X, Y)
+
+    @given(**hu.gcs)
+    def test_range(self, gc, dc):
+        names = [
+            ('stop_',),
+            ('start_', 'stop_'),
+            ('start_', 'stop_', 'step_'),
+        ]
+        # Most random values aren't great here, so use a fixed set instead of
+        # hypothesis.
+        for inputs in (
+            (10,),
+            (np.float32(10.0),),
+            (0,),
+            (0, 0),
+            (10., 5.0, -1.),
+            (2, 10000),
+            (2, 10000, 20000),
+            (2, 10000, -1),
+        ):
+            inputs = [np.array(v) for v in inputs]
+            op = core.CreateOperator(
+                "Range",
+                names[len(inputs) - 1],
+                ["Y"]
+            )
+
+            self.assertReferenceChecks(
+                device_option=gc,
+                op=op,
+                inputs=inputs,
+                reference=lambda *x: [np.arange(*x)],
+            )
+            self.assertDeviceChecks(dc, op, inputs, [0])
+
+        with self.assertRaisesRegexp(RuntimeError, 'Step size cannot be 0'):
+            inputs = (np.array(0), np.array(10), np.array(0))
+            op = core.CreateOperator(
+                "Range",
+                names[len(inputs) - 1],
+                ["Y"]
+            )
+            self.assertReferenceChecks(
+                device_option=gc,
+                op=op,
+                inputs=inputs,
+                reference=lambda *x: [np.arange(*x)],
+            )

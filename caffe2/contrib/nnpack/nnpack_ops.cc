@@ -1,11 +1,31 @@
+/**
+ * Copyright (c) 2016-present, Facebook, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "caffe2/core/common.h"
+
 #ifdef CAFFE2_USE_MKL
-#include <mkl_service.h>
+#include <mkl.h>
 #endif
+
 #include "caffe2/core/context.h"
 #include "caffe2/core/logging.h"
 #include "caffe2/core/operator.h"
 #include "caffe2/operators/conv_pool_op_base.h"
 #include "caffe2/operators/leaky_relu_op.h"
+#include "caffe2/utils/cpuid.h"
 #include "caffe2/utils/math.h"
 #include "nnpack.h"
 
@@ -94,11 +114,13 @@ class NNPACKConvOp final : public ConvPoolOpBase<CPUContext> {
         this->order_ == StorageOrder::NCHW,
         "NNPack only supports NCHW order. Please consider adding "
         "TransposeOp with axes=[0, 3, 1, 2] before NNPack Conv.");
+    OPERATOR_NEEDS_FEATURE(
+        dilation_h() == 1 && dilation_w() == 1,
+        "The NNPack convolution does not support dilation yet.");
 #ifdef CAFFE2_USE_FBCODE
     // Facebook's nnpack build assumes existence of avx2, so we explicitly
     // check if the machine has avx2 support.
-    OPERATOR_NEEDS_FEATURE(
-        __builtin_cpu_supports("avx2"), "NNPack requires AVX2");
+    OPERATOR_NEEDS_FEATURE(GetCpuId().avx2(), "NNPack requires AVX2");
 #endif
   }
 
@@ -124,9 +146,14 @@ class NNPACKConvOp final : public ConvPoolOpBase<CPUContext> {
     const int oH = Y->dim32(2), oW = Y->dim32(3);
 
     if (N > 1) {
-      // NNPack only supports stride = 1 when doing batch feedforward
-      CAFFE_ENFORCE(this->stride_h() == 1, "");
-      CAFFE_ENFORCE(this->stride_w() == 1, "");
+      CAFFE_ENFORCE_EQ(
+          this->stride_h(),
+          1,
+          "NNPack only supports stride = 1 when doing batch feedforward");
+      CAFFE_ENFORCE_EQ(
+          this->stride_w(),
+          1,
+          "NNPack only supports stride = 1 when doing batch feedforward");
     }
     std::vector<int> pads(
         {this->pad_t(), this->pad_b(), this->pad_l(), this->pad_r()});
@@ -228,8 +255,7 @@ class NNPACKMaxPoolOp final : public ConvPoolOpBase<CPUContext> {
 #ifdef CAFFE2_USE_FBCODE
     // Facebook's nnpack build assumes existence of avx2, so we explicitly
     // check if the machine has avx2 support.
-    OPERATOR_NEEDS_FEATURE(
-        __builtin_cpu_supports("avx2"), "NNPack requires AVX2");
+    OPERATOR_NEEDS_FEATURE(GetCpuId().avx2(), "NNPack requires AVX2");
 #endif
   }
 
@@ -284,8 +310,7 @@ class NNPACKReluOp final : public Operator<CPUContext> {
 #ifdef CAFFE2_USE_FBCODE
     // Facebook's nnpack build assumes existence of avx2, so we explicitly
     // check if the machine has avx2 support.
-    OPERATOR_NEEDS_FEATURE(
-        __builtin_cpu_supports("avx2"), "NNPack requires AVX2");
+    OPERATOR_NEEDS_FEATURE(GetCpuId().avx2(), "NNPack requires AVX2");
 #endif
   }
 
@@ -313,8 +338,7 @@ class NNPACKLeakyReluOp final : public LeakyReluOp<float, CPUContext> {
 #ifdef CAFFE2_USE_FBCODE
     // Facebook's nnpack build assumes existence of avx2, so we explicitly
     // check if the machine has avx2 support.
-    OPERATOR_NEEDS_FEATURE(
-        __builtin_cpu_supports("avx2"), "NNPack requires AVX2");
+    OPERATOR_NEEDS_FEATURE(GetCpuId().avx2(), "NNPack requires AVX2");
 #endif
   }
 

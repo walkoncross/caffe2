@@ -2,6 +2,10 @@
 set -e
 set -x
 
+LOCAL_DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+ROOT_DIR=$(dirname "$LOCAL_DIR")
+cd "$ROOT_DIR"
+
 APT_INSTALL_CMD='sudo apt-get install -y --no-install-recommends'
 
 if [ "$TRAVIS_OS_NAME" = 'linux' ]; then
@@ -30,8 +34,10 @@ if [ "$TRAVIS_OS_NAME" = 'linux' ]; then
         libpthread-stubs0-dev \
         libsnappy-dev \
         protobuf-compiler \
+        python \
         python-dev \
         python-pip \
+        python-wheel \
         software-properties-common \
         xsltproc
 
@@ -141,7 +147,6 @@ elif [ "$TRAVIS_OS_NAME" = 'osx' ]; then
         glog \
         leveldb \
         lmdb \
-        opencv \
         protobuf
 
     # Install ccache symlink wrappers
@@ -157,7 +162,13 @@ fi
 ####################
 # pip dependencies #
 ####################
-pip install numpy
+sudo pip install \
+    future \
+    hypothesis \
+    numpy \
+    protobuf \
+    pytest \
+    scikit-image
 
 if [ "$BUILD_ANDROID" = 'true' ]; then
     #######################
@@ -205,6 +216,6 @@ if [ "$BUILD_NNPACK" = 'true' ]; then
         echo "OS \"$TRAVIS_OS_NAME\" is unknown"
         exit 1
     fi
-    pip install git+https://github.com/Maratyszcza/PeachPy
-    pip install git+https://github.com/Maratyszcza/confu
+    sudo pip install git+https://github.com/Maratyszcza/PeachPy
+    sudo pip install git+https://github.com/Maratyszcza/confu
 fi

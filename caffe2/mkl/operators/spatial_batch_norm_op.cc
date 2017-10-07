@@ -1,7 +1,23 @@
+/**
+ * Copyright (c) 2016-present, Facebook, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "caffe2/operators/spatial_batch_norm_op.h"
 #include <math.h>
 
-#include "caffe2/utils/mkl_utils.h"
+#include "caffe2/mkl/mkl_utils.h"
 
 #ifdef CAFFE2_HAS_MKL_DNN
 
@@ -15,6 +31,9 @@ class MKLBNOp final : public SpatialBNOp<MKLContext> {
       : SpatialBNOp<MKLContext>(operator_def, ws) {
     OPERATOR_NEEDS_FEATURE(
         order_ == StorageOrder::NCHW, "Only NCHW order supported.");
+    OPERATOR_NEEDS_FEATURE(
+        operator_def.input(0) != operator_def.output(0),
+        "Inplace BN not supported");
   }
   ~MKLBNOp() {
     if (scale_bias_buffer_ != NULL) {
@@ -51,7 +70,7 @@ class MKLBNOp final : public SpatialBNOp<MKLContext> {
     DCHECK_EQ(bias.dim32(0), C);
 
     bool dims_changed;
-    CHECK_INPUT_DIMS(dims_changed);
+    CHECK_INPUT_DIMS(X, dims_changed);
     if (dims_changed) {
       // Create main primitive.
       if (is_test_) {
@@ -78,7 +97,6 @@ class MKLBNOp final : public SpatialBNOp<MKLContext> {
         running_mean_buf = (T*)running_mean->buffer();
         running_var_buf = (T*)running_var->buffer();
       }
-
       Y->Reset(X.dims(), primitive_, dnnResourceDst);
       buffer_.Reset(X.dims(), primitive_, dnnResourceDst, true);
 
